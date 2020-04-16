@@ -28,13 +28,23 @@ db.authenticate(sequelize);
 const Person = sequelize.define(
   'person',
   {
-    name: DataTypes.TEXT,
+    name: DataTypes.STRING,
     awesome: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     }
   }
 );
+
+const Favourite = sequelize.define(
+  'favourite',
+  {description: DataTypes.TEXT}
+);
+
+// this creates an association (ie Foreign Key) this is a one to many
+// (not denormalized as you can have duplicated descriptions)
+Person.hasMany(Favourite);
+Favourite.belongsTo(Person);
 
 
 // Sync db table: note this destroys any existing data and (re)creates the
@@ -133,3 +143,32 @@ app.delete('/person/:id', function(req, res) {
     person.destroy();
   }).then(() => {res.sendStatus(200);});
 });
+
+
+// create a favourite  for person (whose id == :id)
+// eslint-disable-next-line max-len
+// curl -d '{"description":"Books",}' -H "Content-Type: application/json" -X POST http://localhost:3000/like/1
+app.post(
+  '/like/:id', (req, res) => {
+    Person.findByPk(req.params.id).then(
+      person => person.addFavourite({
+        description: req.body.description,
+      })
+    ).then(
+      person => res.json({
+        person: {id: person.id, name: person.name},
+          likes: req.body.description
+      })
+    );
+  }
+);
+
+app.get(
+  '/like/:id', (req, res) => {
+    Person.findByPk(req.params.id).then(
+      person => person.getFavourites()   // method added autoamtically
+    ).then(
+      likes => res.json(likes)
+    );
+  }
+);
