@@ -1,65 +1,34 @@
 /*jshint esversion: 8 */
 const bodyParser = require('body-parser');
 const express = require('express');
+const Sequelize = require('sequelize');
+
 const db = require('./modules/db');
-const {Sequelize, DataTypes} = require('sequelize');
 
 /* you will need to change this to connect to your db *
  * const sequelize = new Sequelize(
  *  'mysql://user:pass@example.com:5432/dbname'
  * );
+ *
+ * do this is src/modules/index.js
+ *
+ * This is done elsewhere are Sequelizes reuses db connections so you only
+ * want one instance of it.
  */
+const sequelize = db.sequelize;
 
-const sequelize = new Sequelize({
-  // The `host` parameter is required for other databases
-  // host: 'localhost'
-  dialect: 'sqlite',
-  storage: './database.sqlite'
-});
+// Database models: see src/modules/db/index.js
+const Person = db.Person;
 
 const app = express();
 app.use(bodyParser.json());
 const port = 3000;
 app.listen(port, () => console.log(`listening on port ${port}!`));
+
+// setup the db connection
 db.authenticate(sequelize);
 
 
-// Define sample models
-const Person = sequelize.define(
-  'person',
-  {
-    name: DataTypes.STRING,
-    awesome: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true,
-    }
-  }
-);
-
-const Favourite = sequelize.define(
-  'favourite',
-  {description: DataTypes.TEXT}
-);
-
-// this creates an association (ie Foreign Key) this is a one to many
-// (not denormalized as you can have duplicated descriptions)
-Person.hasMany(Favourite);
-Favourite.belongsTo(Person);
-
-
-// Sync db table: note this destroys any existing data and (re)creates the
-// tables
-sequelize.sync({ force: true }).then(
-  () => {
-    console.log(`Database & tables created!`);
-    // Add some sample data
-  Person.bulkCreate([{'name': 'Paul'}]).then(
-    function() {
-      return Person.findAll();
-    }).then(function(people) {
-      console.log(people);
-    });
-});
 
 
 app.get('/', (req, res) => res.send('Sample App'));
