@@ -10,7 +10,7 @@ reset the database to its initial state (nmake sure this is what you want to do)
 
 Then run
 ```
-node/src/index.js
+node src/index.js
 ```
 to run the app
 
