@@ -19,6 +19,9 @@ const sequelize = db.sequelize;
 
 // Database models: see src/modules/db/index.js
 const Person = db.Person;
+const Event = db.Event;
+const Address = db.Address;
+const Attendee = db.Attendee;
 
 const app = express();
 app.use(bodyParser.json());
@@ -35,7 +38,7 @@ app.get('/', (req, res) => res.send('Sample App'));
 
 // list people like 'SELECT * FROM person', curl 127.0.0.1:3000/people
 app.get(
-  '/people', (req, res) => {  // noqa
+  '/people', (req, res) => { // noqa
     Person.findAll().then(people => res.json(people));
   }
 );
@@ -48,7 +51,9 @@ app.get(
   '/person/:id', (req, res) => {
     Person.findAll({
       attributes: ['name', 'awesome'],
-      where: {id: req.params.id}
+      where: {
+        id: req.params.id
+      }
     }).then(
       person => res.json(person)
     );
@@ -67,7 +72,9 @@ app.get(
       where: {
         // be default where uses equality, Op(erations) allow you to make
         // more complex queries
-        name: {[Sequelize.Op.like]: req.query.name}
+        name: {
+          [Sequelize.Op.like]: req.query.name
+        }
       }
     }).then(
       people => res.json(people)
@@ -78,13 +85,18 @@ app.get(
 // create a person using a json post
 // eslint-disable-next-line max-len
 // curl -d '{"name":"Dracula","awesome":"false"}' -H "Content-Type: application/json" -X POST http://localhost:3000/person
-app.post('/person', function(req, res) {
-  Person.create(
-    { name: req.body.name, awesome: req.body.awesome }
-  ).then(function(person) {
+app.post('/person', function (req, res) {
+  Person.create({
+    name: req.body.name,
+    awesome: req.body.awesome
+  }).then(function (person) {
     res.json(person);
   });
 });
+
+// 
+
+
 
 // update a person using disable and put
 // eslint-disable-next-line max-len
@@ -107,10 +119,12 @@ app.put(
 
 // delete someone
 // curl -X "DELETE" 127.0.0.1:3000/person/2
-app.delete('/person/:id', function(req, res) {
-  Person.findByPk(req.params.id).then(function(person) {
+app.delete('/person/:id', function (req, res) {
+  Person.findByPk(req.params.id).then(function (person) {
     person.destroy();
-  }).then(() => {res.sendStatus(200);});
+  }).then(() => {
+    res.sendStatus(200);
+  });
 });
 
 
@@ -125,8 +139,11 @@ app.post(
       })
     ).then(
       person => res.json({
-        person: {id: person.id, name: person.name},
-          likes: req.body.description
+        person: {
+          id: person.id,
+          name: person.name
+        },
+        likes: req.body.description
       })
     );
   }
@@ -135,9 +152,142 @@ app.post(
 app.get(
   '/like/:id', (req, res) => {
     Person.findByPk(req.params.id).then(
-      person => person.getFavourites()   // method added autoamtically
+      person => person.getFavourites() // method added autoamtically
     ).then(
       likes => res.json(likes)
     );
   }
 );
+
+
+// create an attendee
+app.post('/attendee/create', function (req, res) {
+  Attendee.create({
+    name: req.body.name,
+    email: req.body.email,
+    date_of_birth: req.body.dob,
+  }).then(function (attendee) {
+    res.json(attendee);
+  });
+});
+
+// create an event
+app.post('/event/create', function (req, res) {
+  console.log("create event");
+  const event = Event.create({
+    title: req.body.title,
+    description: req.body.description,
+    time: req.body.time,
+    cost: req.body.cost,
+  }).then(function (event) {
+    event.createAddress({
+      line1: req.body.address.line1,
+      line2: req.body.address.line2,
+      city: req.body.address.city,
+      county: req.body.address.county,
+      country: req.body.address.country,
+      postal_code: req.body.address.postal_code
+    });
+  }).then(function (event) {
+    res.json(event);
+  });
+});
+
+app.get(
+  '/events', (req, res) => { // noqa
+    Event.findAll().then(events => res.json(events));
+  }
+);
+
+
+app.get(
+  '/attendee/:id',
+  (req, res) => {
+    const attendee = Attendee.findByPk(req.params.id).then(
+      async (attendee) => {
+        const events = await attendee.getEvents({
+          attributes: ["id", "title", "description", "cost"]
+        }).map(async (event) => {
+          return {
+            id: event.id,
+            title: event.title,
+            description: event.description,
+            cost: event.cost,
+            // address: await event.getAddress()
+          };
+        }); // method added autoamtically
+        res.json({
+          id: attendee.id, 
+          event: events
+          // title: attendee.title,
+          // description: attendee.description,
+          // cost: attendee.cost,
+        });
+      });
+  });
+
+app.post(
+  '/attendee/:id', (req, res) => {
+    // gets a single record by id
+    const attendee = Attendee.findByPk(req.body.id).then(
+      async (attendee) => {
+        await attendee.addEvent(req.params.id);
+        const events = await attendee.getEvents(); // method added autoamtically
+        res.json({
+          name: attendee.name,
+          email: attendee.email,
+          events: events
+        });
+      }
+    );
+  }
+);
+
+app.delete('/event/delete/:id', function (req, res) {
+  Event.findByPk(req.params.id).then(function (event) {
+    event.destroy();
+  }).then(() => {
+    res.sendStatus(200);
+  });
+});
+
+app.delete(
+  '/attendee/:user/:eventid', (req, res) => {
+    // gets a single record by id
+    const attendee = Attendee.findByPk(req.params.user).then(
+      async (attendee) => {
+        await attendee.removeEvent(req.params.eventid);
+        const events = await attendee.getEvents(); // method added automatically
+        res.json({
+          name: attendee.name,
+          email: attendee.email,
+          events: events
+        });
+      }
+    );
+  }
+);
+
+app.get("/event/:id", (req, res) => {
+  const event = Event.findByPk(req.params.id).then(
+    async (event) => {
+      const attendees = await event.getAttendees({
+        attributes: ["id", "name", "email"],
+        raw: true
+      }).map(attendee => {
+        return {
+          id: attendee.id,
+          name: attendee.name,
+          email: attendee.email
+        };
+      }); // method added autoamtically
+      console.log(attendees);
+      res.json({
+        title: event.title,
+        description: event.description,
+        time: event.time,
+        cost: event.cost,
+        attendees: attendees
+      });
+    });
+});
